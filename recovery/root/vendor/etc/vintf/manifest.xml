@@ -1,0 +1,3 @@
+<manifest version="1.0" type="device">
+    <!-- Device HAL entries live in manifest/*.xml. -->
+</manifest>

@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: Apache-2.0
+# Intentionally no generic Boot HAL service here.
+# m2391.boot-hal in /init.recovery.m2391.services.rc is the sole provider.

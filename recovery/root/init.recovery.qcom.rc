@@ -24,38 +24,10 @@
 # OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
-on post-fs-data
-    # Permissions for vibrator , add by zuowang@bsp {@
-    chmod 0666 /sys/class/meizu/motor/on_off
-    chown system system /sys/class/meizu/motor/on_off
-    chmod 0660 /sys/class/meizu/motor/set_cspress
-    chown system system /sys/class/meizu/motor/set_cspress
-    chmod 0660 /sys/class/meizu/motor/set_mback
-    chown system system /sys/class/meizu/motor/set_mback
-    chmod 0660 /sys/class/meizu/motor/rtp
-    chown system system /sys/class/meizu/motor/rtp
-    chmod 0660 sys/class/meizu/motor/game
-    chown system system sys/class/meizu/motor/game
-    chmod 0660 /sys/class/meizu/motor/set_rtp
-    chown system system /sys/class/meizu/motor/set_rtp
-    chmod 0660 /sys/class/meizu/motor/waveform
-    chown system system /sys/class/meizu/motor/waveform
-    chmod 0660 /sys/class/meizu/motor/freq
-    chown system system /sys/class/meizu/motor/freq
-    chmod 0660 /sys/class/meizu/motor/enable
-    chown system system /sys/class/meizu/motor/enable
-    chmod 0666 /sys/class/timed_output/vibrator/enable
-    chown system system /sys/class/timed_output/vibrator/enable
-    chown system system /dev/aw8697_haptic
-    chmod 0777 /dev/aw8697_haptic
-    chown system audio /sys/class/meizu/motor/haptic_audio
-    chmod 0660 /sys/class/meizu/motor/haptic_audio
-    chmod 0660 /sys/class/meizu/motor/usr_f0
-    chown system system /sys/class/meizu/motor/usr_f0
-    mkdir /data/awinic 0770 system audio
-    # @}
 
 on init
+    # Required by vold fscrypt provisioning even with the v2 kernel keyring.
+    install_keyring
     write /sys/class/backlight/panel0-backlight/brightness 2784
     setprop sys.usb.configfs 1
 
@@ -68,3 +40,27 @@ on property:ro.boot.usbcontroller=*
 on fs
     wait /dev/block/platform/soc/${ro.boot.bootdevice}
     symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
+
+# m2391 additions. The stock hardware ID is qcom; the SoC platform is kalama.
+import /init.recovery.m2391.services.rc
+
+on init
+    setprop sys.usb.controller a600000.dwc3
+
+on post-fs
+    exec u:r:recovery:s0 root root -- /system/bin/sh /system/bin/m2391-setup-thermal.sh
+    mkdir /firmware 0755 root root
+    mkdir /vendor/firmware_mnt 0755 root root
+    mount vfat /dev/block/by-name/modem${ro.boot.slot_suffix} /firmware ro
+    mount none /firmware /vendor/firmware_mnt bind
+    mkdir /mnt/vendor/persist 0755 root root
+    mount ext4 /dev/block/bootdevice/by-name/persist /mnt/vendor/persist ro
+    chmod 0660 /dev/qseecom
+    chown system drmrpc /dev/qseecom
+
+on boot
+    start m2391.haptics
+    start m2391.boot-hal
+    start m2391.qseecomd
+    start m2391.keymint
+    start m2391.gatekeeper

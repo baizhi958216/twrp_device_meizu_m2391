@@ -1,0 +1,7 @@
+This device tree was independently assembled from the supplied update.zip.
+No files or configurations from the user's previous public m2391 tree are used.
+New scripts and configuration files: SPDX-License-Identifier: Apache-2.0.
+Stock firmware files, binary blobs and kernel retain their original ownership
+and licensing. Extraction for local use does not grant redistribution rights.
+Original Qualcomm/Linux Foundation notices in copied text files are retained.
+TWRP/AOSP sources were consulted for build and runtime interfaces only.

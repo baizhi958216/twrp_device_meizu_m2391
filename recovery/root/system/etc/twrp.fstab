@@ -1,0 +1,27 @@
+# TWRP fstab. Derived from the stock vendor_boot fstab (NOT the stale
+# stock-recovery fstab, whose fileencryption=ice is older than vendor_boot).
+# mount point   type    block device                  TWRP flags
+/system_root    erofs   /dev/block/mapper/system       flags=slotselect;logical;backup=1;display="System";fsflags=ro
+/system_ext     erofs   /dev/block/mapper/system_ext   flags=slotselect;logical;backup=1;display="System Ext";fsflags=ro
+/product        erofs   /dev/block/mapper/product      flags=slotselect;logical;backup=1;display="Product";fsflags=ro
+/vendor         erofs   /dev/block/mapper/vendor       flags=slotselect;logical;backup=1;display="Vendor";fsflags=ro
+/odm            erofs   /dev/block/mapper/odm          flags=slotselect;logical;backup=1;display="ODM";fsflags=ro
+/vendor_dlkm    erofs   /dev/block/mapper/vendor_dlkm  flags=slotselect;logical;backup=1;display="Vendor DLKM";fsflags=ro
+/system_dlkm    erofs   /dev/block/mapper/system_dlkm  flags=slotselect;logical;backup=1;display="System DLKM";fsflags=ro
+
+/metadata f2fs /dev/block/by-name/metadata flags=display="Metadata";backup=0;canbewiped=0;mounttodecrypt;fsflags=noatime,nosuid,nodev,discard,fsync_mode=strict
+/data f2fs /dev/block/by-name/userdata flags=display="Data";backup=1;userdataencryptbackup=1;fileencryption=aes-256-xts:aes-256-cts:v2+inlinecrypt_optimized+wrappedkey_v0;metadata_encryption=aes-256-xts:wrappedkey_v0;keydirectory=/metadata/vold/metadata_encryption;wrappedkey;fsflags=noatime,nosuid,nodev,discard,reserve_root=131072,resgid=1065,fsync_mode=nobarrier,inlinecrypt,compress_mode=user
+
+# These entries resolve to the currently SELECTED TWRP slot. Inspect the
+# resolved path before Install Image; they are not OTA's target-slot selector.
+/boot        emmc /dev/block/by-name/boot        flags=slotselect;backup=1;flashimg=1;display="Boot (selected slot)"
+/init_boot   emmc /dev/block/by-name/init_boot   flags=slotselect;backup=1;flashimg=1;display="Init Boot (selected slot)"
+/vendor_boot emmc /dev/block/by-name/vendor_boot flags=slotselect;backup=1;flashimg=1;display="Vendor Boot (selected slot)"
+/recovery    emmc /dev/block/by-name/recovery    flags=slotselect;backup=1;flashimg=1;display="Recovery (selected slot)"
+/dtbo        emmc /dev/block/by-name/dtbo        flags=slotselect;backup=1;flashimg=1;display="DTBO (selected slot)"
+/vbmeta      emmc /dev/block/by-name/vbmeta      flags=slotselect;backup=1;flashimg=0;display="VBMeta (selected slot)"
+/vbmeta_system emmc /dev/block/by-name/vbmeta_system flags=slotselect;backup=1;flashimg=0;display="VBMeta System (selected slot)"
+/misc        emmc /dev/block/by-name/misc       flags=backup=0;flashimg=0
+/persist     ext4 /dev/block/bootdevice/by-name/persist flags=display="Persist";backup=1;canbewiped=0;fsflags=ro
+/firmware    vfat /dev/block/bootdevice/by-name/modem flags=slotselect;mounttodecrypt;backup=0;canbewiped=0;fsflags=ro
+/usb_otg     auto /dev/block/sda1 /dev/block/sda flags=display="USB OTG";storage;removable;wipeingui

@@ -1,42 +1,39 @@
-#
-# Copyright (C) 2025 The Android Open Source Project
-# Copyright (C) 2025 SebaUbuntu's TWRP device tree generator
-#
 # SPDX-License-Identifier: Apache-2.0
-#
-
-LOCAL_PATH := device/meizu/m2391
-
-# Configure base.mk
-$(call inherit-product, $(SRC_TARGET_DIR)/product/base.mk)
-
-# Configure core_64_bit_only.mk
-$(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit_only.mk)
-
-# Configure Virtual A/B
+# Recovery is built on SDK 32, not a new full system/vendor product.
+# Keep the physical launch API in runtime properties without requiring absent
+# system SDK 33 stubs in the android-12.1 build tree.
+PRODUCT_USE_DYNAMIC_PARTITIONS := true
 $(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota.mk)
-
-# Configure virtual_ab compression.mk
 $(call inherit-product, $(SRC_TARGET_DIR)/product/virtual_ab_ota/compression.mk)
 
-# Configure emulated_storage.mk
-$(call inherit-product, $(SRC_TARGET_DIR)/product/emulated_storage.mk)
-
-# Configure twrp common.mk
-$(call inherit-product, vendor/twrp/config/common.mk)
-
-# SHIPPING API
-PRODUCT_SHIPPING_API_LEVEL := 31
-
-# VNDK API
-PRODUCT_TARGET_VNDK_VERSION := 33
-
-# Dynamic partitions
-PRODUCT_USE_DYNAMIC_PARTITIONS := true
-
-# Soong namespaces
-PRODUCT_SOONG_NAMESPACES += $(DEVICE_PATH)
-
 PRODUCT_PACKAGES += \
-    bootctrl.m2391.recovery \
-    android.hardware.boot@1.2-impl-qti.recovery
+    update_engine_sideload \
+    fastbootd \
+    android.hardware.fastboot@1.1-impl-mock \
+    android.hardware.boot@1.0 \
+    android.hardware.boot@1.1 \
+    android.hardware.boot@1.2 \
+    android.hardware.keymaster@3.0 \
+    android.hardware.keymaster@4.0 \
+    android.hardware.keymaster@4.1 \
+    android.hardware.gatekeeper@1.0 \
+    libion \
+    libxml2 \
+    liblzma \
+    libcrypto \
+    libcap
+
+# No fake build modules or missing-dependency suppression. Proprietary HALs and
+# their vendor dependencies are installed through the recovery/root overlay.
+PRODUCT_PROPERTY_OVERRIDES += \
+    ro.hardware=qcom \
+    ro.twrp.default_timezone=CST-8 \
+    ro.product.device=meizu20Pro \
+    ro.product.vendor.device=meizu20Pro \
+    ro.vendor.build.security_patch=2023-10-01 \
+    ro.vendor.api_level=33 \
+    ro.board.platform=kalama \
+    ro.adb.secure=0 \
+    ro.crypto.volume.filenames_mode=aes-256-cts \
+    sys.usb.controller=a600000.dwc3 \
+    vendor.usb.use_ffs_mtp=1

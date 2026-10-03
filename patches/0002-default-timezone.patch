@@ -1,0 +1,16 @@
+--- a/data.cpp
++++ b/data.cpp
+@@ -765,6 +765,13 @@
+ 	mPersist.SetValue(TW_TIME_ZONE_GUISEL, "CST6;CDT,M3.2.0,M11.1.0");
+ 	mPersist.SetValue(TW_TIME_ZONE_GUIOFFSET, "0");
+ 	mPersist.SetValue(TW_TIME_ZONE_GUIDST, "1");
++    // Optional device default; saved user settings loaded later take precedence.
++    char default_timezone[PROPERTY_VALUE_MAX];
++    if (property_get("ro.twrp.default_timezone", default_timezone, "") > 0) {
++        mPersist.SetValue(TW_TIME_ZONE_VAR, default_timezone);
++        mPersist.SetValue(TW_TIME_ZONE_GUISEL, string(default_timezone) + ";" + default_timezone);
++        mPersist.SetValue(TW_TIME_ZONE_GUIDST, "0");
++    }
+ 	mPersist.SetValue(TW_AUTO_REFLASHTWRP_VAR, "0");
+ #ifdef TW_NO_FLASH_CURRENT_TWRP
+ 	mConst.SetValue("tw_no_flash_current_twrp", "1");

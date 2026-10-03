@@ -1,0 +1,2 @@
+# Physical launch API, placed in vendor because system build.prop filters this key.
+ro.product.first_api_level=33

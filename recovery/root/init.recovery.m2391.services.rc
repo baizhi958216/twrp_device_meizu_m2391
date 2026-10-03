@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: Apache-2.0
+# Stock API-33 services, with paths relocated into the recovery ramdisk.
+# No markBootSuccessful, setActiveBootSlot, or userdata formatting at startup.
+service m2391.haptics /system/bin/m2391-setup-haptics.sh
+    user root
+    group root
+    disabled
+    oneshot
+    seclabel u:r:recovery:s0
+
+service m2391.boot-hal /system/bin/android.hardware.boot@1.2-service
+    interface android.hardware.boot@1.0::IBootControl default
+    interface android.hardware.boot@1.1::IBootControl default
+    interface android.hardware.boot@1.2::IBootControl default
+    user root
+    group root
+    disabled
+    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    seclabel u:r:recovery:s0
+
+service m2391.qseecomd /system/bin/qseecomd
+    socket notify-topology stream 660 system drmrpc
+    user root
+    group root drmrpc
+    disabled
+    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    seclabel u:r:recovery:s0
+
+service m2391.keymint /system/bin/android.hardware.security.keymint-service-qti
+    user system
+    group system drmrpc
+    disabled
+    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    seclabel u:r:recovery:s0
+
+service m2391.gatekeeper /system/bin/android.hardware.gatekeeper@1.0-service-qti
+    interface android.hardware.gatekeeper@1.0::IGatekeeper default
+    user system
+    group system
+    disabled
+    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    seclabel u:r:recovery:s0

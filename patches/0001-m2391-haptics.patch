@@ -1,0 +1,17 @@
+--- a/minuitwrp/events.cpp
++++ b/minuitwrp/events.cpp
+@@ -149,6 +149,14 @@
+ #ifndef TW_HAPTICS_TSPDRV
+ int vibrate(int timeout_ms)
+ {
++    // Meizu's legacy enable node does not implement a reliable timed pulse.
++    // The device loader publishes readiness only after loading stock waveforms.
++    if (access("/system/etc/m2391-haptics", F_OK) == 0) {
++        if (timeout_ms <= 0) return 0;
++        if (access("/tmp/m2391-haptics-ready", F_OK) != 0) return -1;
++        // One finite stock mBack tap, independent of the legacy timeout value.
++        return write_to_file("/sys/class/meizu/motor/set_mback", "1 1");
++    }
+     if (timeout_ms > 10000) timeout_ms = 1000;
+     char tout[6];
+     sprintf(tout, "%i", timeout_ms);
