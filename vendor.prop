@@ -1,2 +1,6 @@
 # Physical launch API, placed in vendor because system build.prop filters this key.
 ro.product.first_api_level=33
+
+# Match stock vendor: Gatekeeper uses the TEE rather than the unavailable SPU.
+vendor.gatekeeper.disable_spu=true
+vendor.gatekeeper.is_security_level_spu=0

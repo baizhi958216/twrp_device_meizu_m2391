@@ -21,7 +21,7 @@ TWRP device tree for the MEIZU 20 Pro (`m2391`).
 
 - [x] Boot  
 - [x] ADB  
-- [x] FDE  
+- [x] FBE  
 - [x] CPU temperature  
 - [x] Haptic feedback  
 - [x] Clock  
