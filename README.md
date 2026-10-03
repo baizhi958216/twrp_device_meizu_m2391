@@ -36,6 +36,18 @@ TWRP device tree for the MEIZU 20 Pro (`m2391`).
 
 ## Building
 
+### GitHub Actions
+
+Open **Actions → Build TWRP → Run workflow**, select the device-tree branch,
+and choose 4 parallel jobs (or 2 to reduce memory use). The workflow builds
+`recoveryimage` on an Ubuntu 22.04 runner using the `twrp-12.1` minimal manifest
+and applies all device patches through `build.sh`.
+
+Successful runs provide a `twrp-m2391-<run>` artifact containing `recovery.img`,
+its SHA-256 checksum, AVB information, the resolved source manifest, and the
+device-tree commit. Images are retained for 30 days. Build logs are uploaded
+even on failure and retained for 14 days. Runs are started manually.
+
 ### 1. Fetch the TWRP sources
 
 Use the official [TWRP minimal manifest](https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp/tree/twrp-12.1):

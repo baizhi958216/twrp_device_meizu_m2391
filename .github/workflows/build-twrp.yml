@@ -1,0 +1,174 @@
+name: Build TWRP
+run-name: TWRP m2391 · ${{ github.ref_name }} · run ${{ github.run_number }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      jobs:
+        description: Parallel build jobs
+        type: choice
+        default: '4'
+        options:
+          - '4'
+          - '2'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: twrp-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  recovery:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    env:
+      JOBS: ${{ inputs.jobs }}
+      SOURCE_DIR: ${{ github.workspace }}/twrp
+      ARTIFACT_DIR: ${{ github.workspace }}/artifacts
+      LC_ALL: C.UTF-8
+      LANG: C.UTF-8
+
+    steps:
+      - name: Check out device tree
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: device-tree
+          persist-credentials: false
+
+      - name: Prepare runner storage and dependencies
+        run: |
+          mkdir -p "$ARTIFACT_DIR/logs" "$SOURCE_DIR"
+          df -h | tee "$ARTIFACT_DIR/logs/disk-before.txt"
+          # This disposable runner does not need its Android SDK or other SDKs.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+            /usr/local/.ghcup /usr/local/share/boost /opt/hostedtoolcache \
+            /usr/share/swift
+          sudo docker image prune --all --force
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            bc bison build-essential ca-certificates curl flex fontconfig \
+            g++-multilib gcc-multilib git git-lfs gnupg gperf imagemagick \
+            lib32ncurses5-dev lib32z1-dev libc6-dev-i386 libelf-dev \
+            libgl1-mesa-dev libncurses5 libncurses5-dev libssl-dev \
+            libxml2-utils lzop openssl pngcrush python3 python-is-python3 \
+            rsync schedtool squashfs-tools unzip x11proto-core-dev xsltproc \
+            zip zlib1g-dev
+          sudo apt-get clean
+          sudo fallocate -l 8G /swapfile-twrp
+          sudo chmod 600 /swapfile-twrp
+          sudo mkswap /swapfile-twrp
+          sudo swapon /swapfile-twrp
+          df -h | tee "$ARTIFACT_DIR/logs/disk-prepared.txt"
+          free -h | tee "$ARTIFACT_DIR/logs/memory.txt"
+          available_kb=$(df -Pk "$SOURCE_DIR" | awk 'NR == 2 {print $4}')
+          if (( available_kb < 55 * 1024 * 1024 )); then
+            echo '::error::Less than 55 GiB available for the source and build.'
+            exit 1
+          fi
+          curl --fail --location --retry 3 \
+            https://storage.googleapis.com/git-repo-downloads/repo \
+            -o "$RUNNER_TEMP/repo"
+          chmod 755 "$RUNNER_TEMP/repo"
+          git config --global user.name 'TWRP Builder'
+          git config --global user.email 'twrp-builder@users.noreply.github.com'
+
+      - name: Sync TWRP android-12.1
+        run: |
+          cd "$SOURCE_DIR"
+          "$RUNNER_TEMP/repo" init --depth=1 \
+            -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git \
+            -b twrp-12.1 2>&1 | tee "$ARTIFACT_DIR/logs/repo-init.log"
+          synced=false
+          for attempt in 1 2 3; do
+            if "$RUNNER_TEMP/repo" sync -c --no-tags --no-clone-bundle \
+                --optimized-fetch -j4 2>&1 | tee "$ARTIFACT_DIR/logs/repo-sync-$attempt.log"; then
+              synced=true
+              break
+            fi
+            sleep 15
+          done
+          test "$synced" = true
+          "$RUNNER_TEMP/repo" manifest -r -o "$ARTIFACT_DIR/source-manifest.xml"
+          mkdir -p device/meizu/m2391
+          rsync -a --exclude=.git --exclude=.github \
+            "$GITHUB_WORKSPACE/device-tree/" device/meizu/m2391/
+          git -C "$GITHUB_WORKSPACE/device-tree" rev-parse HEAD \
+            > "$ARTIFACT_DIR/device-tree-commit.txt"
+          df -h | tee "$ARTIFACT_DIR/logs/disk-after-sync.txt"
+
+      - name: Build recoveryimage
+        run: |
+          cd "$SOURCE_DIR"
+          bash device/meizu/m2391/build.sh 2>&1 | tee "$ARTIFACT_DIR/logs/build.log"
+
+      - name: Verify and collect recovery image
+        run: |
+          cd "$SOURCE_DIR"
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          root = Path('out/target/product/m2391')
+          image = root / 'recovery.img'
+          with image.open('rb') as f:
+              header = f.read(44)
+          assert header[:8] == b'ANDROID!', 'Invalid boot image magic'
+          kernel, ramdisk = struct.unpack_from('<II', header, 8)
+          version = struct.unpack_from('<I', header, 40)[0]
+          assert version == 4 and kernel == 0 and ramdisk > 0, (version, kernel, ramdisk)
+          assert image.stat().st_size == 104857600, image.stat().st_size
+          props = (root / 'recovery/root/prop.default').read_text().splitlines()
+          for entry in ('vendor.gatekeeper.disable_spu=true',
+                        'vendor.gatekeeper.is_security_level_spu=0'):
+              assert entry in props, f'Missing recovery property: {entry}'
+          recovery = root / 'recovery/root/system/bin/recovery'
+          assert b'Prepared temporary keystore database including WAL' in recovery.read_bytes(), \
+              'Keystore WAL fix missing from recovery binary'
+          print('Verified: header v4, no embedded kernel, 100 MiB image, Gatekeeper properties and WAL fix')
+          PY
+          python3 external/avb/avbtool.py info_image \
+            --image out/target/product/m2391/recovery.img \
+            > "$ARTIFACT_DIR/recovery-avb.txt"
+          cp out/target/product/m2391/recovery.img "$ARTIFACT_DIR/recovery.img"
+          cd "$ARTIFACT_DIR"
+          sha256sum recovery.img > recovery.img.sha256
+          {
+            echo '### TWRP m2391 build'
+            echo
+            echo "Device tree: $GITHUB_SHA"
+            echo
+            echo '```text'
+            cat recovery.img.sha256
+            echo '```'
+            echo
+            echo 'Download the recovery artifact below. Build success does not verify device runtime behavior.'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload recovery image
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: twrp-m2391-${{ github.run_number }}
+          path: |
+            artifacts/recovery.img
+            artifacts/recovery.img.sha256
+            artifacts/recovery-avb.txt
+            artifacts/source-manifest.xml
+            artifacts/device-tree-commit.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: twrp-m2391-logs-${{ github.run_number }}-${{ github.run_attempt }}
+          path: |
+            artifacts/logs/
+            artifacts/source-manifest.xml
+            artifacts/device-tree-commit.txt
+          if-no-files-found: warn
+          retention-days: 14
