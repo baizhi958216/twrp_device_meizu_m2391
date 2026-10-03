@@ -126,9 +126,12 @@ jobs:
                         'vendor.gatekeeper.is_security_level_spu=0'):
               assert entry in props, f'Missing recovery property: {entry}'
           recovery = root / 'recovery/root/system/bin/recovery'
-          assert b'Prepared temporary keystore database including WAL' in recovery.read_bytes(), \
+          recovery_binary = recovery.read_bytes()
+          assert b'Prepared temporary keystore database including WAL' in recovery_binary, \
               'Keystore WAL fix missing from recovery binary'
-          print('Verified: header v4, no embedded kernel, 100 MiB image, Gatekeeper properties and WAL fix')
+          assert b'Invalid apex payload size or file type:' in recovery_binary, \
+              'APEX loop size fix missing from recovery binary'
+          print('Verified: header v4, no embedded kernel, 100 MiB image, Gatekeeper properties, WAL and APEX fixes')
           PY
           python3 external/avb/avbtool.py info_image \
             --image out/target/product/m2391/recovery.img \
