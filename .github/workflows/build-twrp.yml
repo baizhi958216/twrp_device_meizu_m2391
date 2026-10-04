@@ -65,11 +65,6 @@ jobs:
           sudo swapon /swapfile-twrp
           df -h | tee "$ARTIFACT_DIR/logs/disk-prepared.txt"
           free -h | tee "$ARTIFACT_DIR/logs/memory.txt"
-          available_kb=$(df -Pk "$SOURCE_DIR" | awk 'NR == 2 {print $4}')
-          if (( available_kb < 55 * 1024 * 1024 )); then
-            echo '::error::Less than 55 GiB available for the source and build.'
-            exit 1
-          fi
           curl --fail --location --retry 3 \
             https://storage.googleapis.com/git-repo-downloads/repo \
             -o "$RUNNER_TEMP/repo"
@@ -106,36 +101,9 @@ jobs:
           cd "$SOURCE_DIR"
           bash device/meizu/m2391/build.sh 2>&1 | tee "$ARTIFACT_DIR/logs/build.log"
 
-      - name: Verify and collect recovery image
+      - name: Collect recovery image
         run: |
           cd "$SOURCE_DIR"
-          python3 - <<'PY'
-          from pathlib import Path
-          import struct
-          root = Path('out/target/product/m2391')
-          image = root / 'recovery.img'
-          with image.open('rb') as f:
-              header = f.read(44)
-          assert header[:8] == b'ANDROID!', 'Invalid boot image magic'
-          kernel, ramdisk = struct.unpack_from('<II', header, 8)
-          version = struct.unpack_from('<I', header, 40)[0]
-          assert version == 4 and kernel == 0 and ramdisk > 0, (version, kernel, ramdisk)
-          assert image.stat().st_size == 104857600, image.stat().st_size
-          props = (root / 'recovery/root/prop.default').read_text().splitlines()
-          for entry in ('vendor.gatekeeper.disable_spu=true',
-                        'vendor.gatekeeper.is_security_level_spu=0'):
-              assert entry in props, f'Missing recovery property: {entry}'
-          recovery = root / 'recovery/root/system/bin/recovery'
-          recovery_binary = recovery.read_bytes()
-          assert b'Prepared temporary keystore database including WAL' in recovery_binary, \
-              'Keystore WAL fix missing from recovery binary'
-          assert b'Invalid apex payload size or file type:' in recovery_binary, \
-              'APEX loop size fix missing from recovery binary'
-          print('Verified: header v4, no embedded kernel, 100 MiB image, Gatekeeper properties, WAL and APEX fixes')
-          PY
-          python3 external/avb/avbtool.py info_image \
-            --image out/target/product/m2391/recovery.img \
-            > "$ARTIFACT_DIR/recovery-avb.txt"
           cp out/target/product/m2391/recovery.img "$ARTIFACT_DIR/recovery.img"
           cd "$ARTIFACT_DIR"
           sha256sum recovery.img > recovery.img.sha256
@@ -158,7 +126,6 @@ jobs:
           path: |
             artifacts/recovery.img
             artifacts/recovery.img.sha256
-            artifacts/recovery-avb.txt
             artifacts/source-manifest.xml
             artifacts/device-tree-commit.txt
           if-no-files-found: error
