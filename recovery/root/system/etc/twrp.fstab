@@ -22,6 +22,38 @@
 /vbmeta      emmc /dev/block/by-name/vbmeta      flags=slotselect;backup=1;flashimg=0;display="VBMeta (selected slot)"
 /vbmeta_system emmc /dev/block/by-name/vbmeta_system flags=slotselect;backup=1;flashimg=0;display="VBMeta System (selected slot)"
 /misc        emmc /dev/block/by-name/misc       flags=backup=0;flashimg=0
-/persist     ext4 /dev/block/bootdevice/by-name/persist flags=display="Persist";backup=1;canbewiped=0;fsflags=ro
-/firmware    vfat /dev/block/bootdevice/by-name/modem flags=slotselect;mounttodecrypt;backup=0;canbewiped=0;fsflags=ro
+
+# Mount-only aliases: factory/firmware backups below use full raw images.
+# init also mounts persist at /mnt/vendor/persist and modem at
+# /vendor/firmware_mnt. All aliases must be unmounted before raw restore.
+/persist     ext4 /dev/block/bootdevice/by-name/persist flags=display="Persist";backup=0;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0;fsflags=ro
+/firmware    vfat /dev/block/bootdevice/by-name/modem flags=slotselect;mounttodecrypt;backup=0;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0;fsflags=ro
+
+# Shared Qualcomm NV/EFS: selecting EFS includes all four partitions.
+# These are NOT slotted and modemst1/2 do NOT mean SIM1/SIM2.
+# Disable Wipe/Factory Reset and generic Install Image; TWRP Restore remains
+# available for a verified backup from this same phone.
+/efs1        emmc /dev/block/by-name/modemst1 flags=display="EFS (Modem NV)";backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/efs2        emmc /dev/block/by-name/modemst2 flags=subpartitionof=/efs1;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/efsg        emmc /dev/block/by-name/fsg      flags=subpartitionof=/efs1;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/efsc        emmc /dev/block/by-name/fsc      flags=subpartitionof=/efs1;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+
+# Meizu factory data. Keep these independently selectable for restore:
+# their vendor-specific contents are not interchangeable with Qualcomm NV.
+# The connected m2391's SN string was found in private (no identifiers here).
+/private     emmc /dev/block/by-name/private flags=display="Meizu Private (SN)";backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/proinfo     emmc /dev/block/by-name/proinfo flags=display="Meizu Product Info";backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/param       emmc /dev/block/by-name/param   flags=display="Meizu Parameters";backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/persist_image emmc /dev/block/by-name/persist flags=display="Persist Image (calibration)";backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+
+# Firmware is version-dependent, separate from the phone's NV/identity data.
+# Explicit slot paths prevent the selected TWRP slot from changing the target.
+# Each Modem Firmware selection includes that slot's DSP and Bluetooth.
+/modem_a     emmc /dev/block/by-name/modem_a     flags=display="Modem Firmware (slot A)";backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/dsp_a       emmc /dev/block/by-name/dsp_a       flags=subpartitionof=/modem_a;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/bluetooth_a emmc /dev/block/by-name/bluetooth_a flags=subpartitionof=/modem_a;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/modem_b     emmc /dev/block/by-name/modem_b     flags=display="Modem Firmware (slot B)";backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/dsp_b       emmc /dev/block/by-name/dsp_b       flags=subpartitionof=/modem_b;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+/bluetooth_b emmc /dev/block/by-name/bluetooth_b flags=subpartitionof=/modem_b;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
+
 /usb_otg     auto /dev/block/sda1 /dev/block/sda flags=display="USB OTG";storage;removable;wipeingui
