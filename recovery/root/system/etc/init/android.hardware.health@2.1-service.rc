@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+service health-hal-2-1 /system/bin/android.hardware.health@2.1-service
+    interface android.hardware.health@2.0::IHealth default
+    interface android.hardware.health@2.1::IHealth default
+    disabled
+    user root
+    group root
+    capabilities WAKE_ALARM
+    file /dev/kmsg w
+    seclabel u:r:recovery:s0

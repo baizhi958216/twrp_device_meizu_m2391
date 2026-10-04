@@ -59,6 +59,8 @@ on post-fs
     chown system drmrpc /dev/qseecom
 
 on boot
+    # fastbootd waits for IHealth in its constructor, before opening USB FFS.
+    start health-hal-2-1
     start m2391.haptics
     start m2391.boot-hal
     start m2391.qseecomd
