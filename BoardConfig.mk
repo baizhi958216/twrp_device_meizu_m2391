@@ -48,7 +48,7 @@ BOARD_AVB_RECOVERY_ADD_HASH_FOOTER_ARGS += --rollback_index 1
 # These do not change the TWRP source SDK or the stock recovery boot header.
 PLATFORM_VERSION := 16.0.0
 PLATFORM_VERSION_LAST_STABLE := 16
-PLATFORM_SECURITY_PATCH := 2025-12-05
+PLATFORM_SECURITY_PATCH := 2099-12-31
 
 # Values from vendor/recovery, not the Android 16 system version.
 # Do not emit full-system GRF board API properties into an SDK-32 recovery.
