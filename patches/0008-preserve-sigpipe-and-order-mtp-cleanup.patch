@@ -1,0 +1,65 @@
+--- a/twrpinstall/adb_install.cpp
++++ b/twrpinstall/adb_install.cpp
+@@ -375,7 +375,9 @@
+     }
+   }
+ 
+-  signal(SIGPIPE, SIG_DFL);
++  // Recovery ignores SIGPIPE globally; MTP pipes can close during USB changes.
++  // Restoring SIG_DFL here terminates recovery when MTP is restarted.
++  signal(SIGPIPE, SIG_IGN);
+ }
+ 
+   int twrp_sideload(const char* install_file, Device::BuiltinAction* reboot_action) {
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -49,6 +49,7 @@
+ #include <android-base/file.h>
+ #include <android-base/logging.h>
+ #include <android-base/properties.h>
++#include <chrono>
+ #include <android-base/strings.h>
+ #include <fstab/fstab.h>
+ #include <fs_avb/fs_avb.h>
+@@ -3112,6 +3113,14 @@
+ 		char vendor[PROPERTY_VALUE_MAX];
+ 		char product[PROPERTY_VALUE_MAX];
+ 		property_set("sys.usb.config", "none");
++		if (!android::base::WaitForProperty("sys.usb.state", "none", std::chrono::seconds(5))) {
++			LOGERR("Timed out disabling USB before enabling MTP\n");
++			close(mtppipe[0]);
++			close(mtppipe[1]);
++			DataManager::SetValue("tw_mtp_enabled", 0);
++			property_set("sys.usb.config", "adb");
++			return false;
++		}
+ 		property_get("usb.vendor", vendor, "18D1");
+ 		property_get("usb.product.mtpadb", product, "4EE2");
+ 		string vendorstr = vendor;
+@@ -3168,13 +3177,14 @@
+ 		char vendor[PROPERTY_VALUE_MAX];
+ 		char product[PROPERTY_VALUE_MAX];
+ 		property_set("sys.usb.config", "none");
++		if (!android::base::WaitForProperty("sys.usb.state", "none", std::chrono::seconds(5)))
++			LOGERR("Timed out disabling USB before stopping MTP\n");
+ 		property_get("usb.vendor", vendor, "18D1");
+ 		property_get("usb.product.adb", product, "D001");
+ 		string vendorstr = vendor;
+ 		string productstr = product;
+ 		TWFunc::write_to_file("/config/usb_gadget/g1/idVendor", vendorstr);
+ 		TWFunc::write_to_file("/config/usb_gadget/g1/idProduct", productstr);
+-		usleep(2000);
+ 	}
+ #ifdef TW_HAS_MTP
+ 	if (mtppid) {
+--- a/etc/init.rc
++++ b/etc/init.rc
+@@ -189,6 +189,8 @@
+     stop fastbootd
+     setprop sys.usb.ffs.ready 0
+     rm /config/usb_gadget/g1/configs/b.1/f1
++    rm /config/usb_gadget/g1/configs/b.1/f2
++    setprop sys.usb.ffs.mtp.ready 0
+     setprop sys.usb.state ${sys.usb.config}
+ 
+ on property:sys.usb.config=sideload && property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1

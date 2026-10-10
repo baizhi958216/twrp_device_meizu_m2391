@@ -1,0 +1,72 @@
+--- a/FsCrypt.cpp
++++ b/FsCrypt.cpp
+@@ -104,6 +104,8 @@
+ std::map<userid_t, EncryptionPolicy> s_de_policies;
+ std::map<userid_t, EncryptionPolicy> s_ce_policies;
+ std::string de_key_raw_ref;
++// Policies only: key material remains in the kernel provisioning keyring.
++static std::vector<EncryptionPolicy> s_systemwide_policies;
+ bool retry = true;
+ 
+ // Returns KeyGeneration suitable for key as described in EncryptionOptions
+@@ -495,7 +497,26 @@
+         return false;
+     LOG(INFO) << "Wrote per boot key reference to:" << per_boot_ref_filename;
+ 
+-    return true;
++    s_systemwide_policies = {device_policy, per_boot_policy};
++    return true;
++}
++
++bool fscrypt_reload_keys_after_remount() {
++    // A filesystem keyring is destroyed on the last unmount. The session
++    // provisioning keyring survives, including already-unlocked CE keys.
++    // Never generate keys or change user decrypt state during a remount.
++    if (!android::vold::isFsKeyringSupported() || s_systemwide_policies.empty())
++        return true;
++    LOG(INFO) << "Reloading FBE keys after userdata remount";
++    for (const auto& policy : s_systemwide_policies) {
++        if (!android::vold::reloadKeyFromSessionKeyring(DATA_MNT_POINT, policy))
++            return false;
++    }
++    for (const auto& it : s_de_policies) {
++        if (!android::vold::reloadKeyFromSessionKeyring(DATA_MNT_POINT, it.second))
++            return false;
++    }
++    return try_reload_ce_keys();
+ }
+ 
+ bool fscrypt_init_user0() {
+--- a/FsCrypt.h
++++ b/FsCrypt.h
+@@ -24,6 +24,7 @@
+ bool fscrypt_initialize_systemwide_keys();
+ 
+ bool fscrypt_init_user0();
++bool fscrypt_reload_keys_after_remount();
+ bool fscrypt_vold_create_user_key(userid_t user_id, int serial, bool ephemeral);
+ bool fscrypt_destroy_user_key(userid_t user_id);
+ bool fscrypt_add_user_key_auth(userid_t user_id, int serial, const std::string& secret);
+--- a/Decrypt.cpp
++++ b/Decrypt.cpp
+@@ -183,6 +183,10 @@
+ 		return false;
+ 	}
+ 	return true;
++}
++
++extern "C" bool Reload_FBE_Keys() {
++	return fscrypt_reload_keys_after_remount();
+ }
+ 
+ extern "C" bool Decrypt_DE() {
+--- a/Decrypt.h
++++ b/Decrypt.h
+@@ -37,6 +37,7 @@
+     void copySqliteDb();
+     int Get_Password_Type(const userid_t user_id, std::string& filename);
+     bool Decrypt_DE();
++    bool Reload_FBE_Keys();
+     bool Decrypt_User(const userid_t user_id, const std::string& Password);
+ }
+ }

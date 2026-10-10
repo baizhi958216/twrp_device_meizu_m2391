@@ -1,14 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 # TWRP etc/init.rc handles configfs ADB/sideload/fastboot. Add only FFS MTP.
 # The stock GKI does not provide legacy CONFIG_USB_CONFIGFS_F_MTP.
+# Patch 0008 completes f1/f2 cleanup in the base none action before its ACK.
 on fs && property:sys.usb.configfs=1
     mkdir /config/usb_gadget/g1/functions/ffs.mtp
     mkdir /dev/usb-ffs/mtp 0770 mtp mtp
     mount functionfs mtp /dev/usb-ffs/mtp rmode=0770,fmode=0660,uid=1024,gid=1024,no_disconnect=1
-
-on property:sys.usb.config=none && property:sys.usb.configfs=1
-    rm /config/usb_gadget/g1/configs/b.1/f2
-    setprop sys.usb.ffs.mtp.ready 0
 
 on property:sys.usb.config=mtp,adb && property:sys.usb.configfs=1
     start adbd

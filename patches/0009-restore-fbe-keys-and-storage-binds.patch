@@ -1,0 +1,81 @@
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -33,6 +33,7 @@
+ #include <grp.h>
+ #include <iostream>
+ #include <libgen.h>
++#include <mntent.h>
+ #include <pwd.h>
+ #include <zlib.h>
+ #include <sstream>
+@@ -1770,6 +1771,13 @@
+ 	}
+ 
+ exit:
++#ifdef TW_INCLUDE_FBE
++	if (Mount_Point == "/data" && Is_FBE && !android::keystore::Reload_FBE_Keys()) {
++		LOGERR("Unable to restore FBE keys after remounting /data\n");
++		umount(Mount_Point.c_str());
++		return false;
++	}
++#endif
+ 	if (Removable)
+ 		Update_Size(Display_Error);
+ 
+@@ -1780,8 +1788,34 @@
+ 	return true;
+ }
+ 
++static bool IsExactMountPoint(const string& path) {
++	FILE* mounts = setmntent("/proc/mounts", "r");
++	if (!mounts) return false;
++	bool found = false;
++	struct mntent* entry;
++	while ((entry = getmntent(mounts)) != NULL) {
++		if (path == entry->mnt_dir) { found = true; break; }
++	}
++	endmntent(mounts);
++	return found;
++}
++
+ bool TWPartition::Bind_Mount(bool Display_Error) {
+ 	if (TWFunc::Path_Exists(Symlink_Path)) {
++		struct stat source, target;
++		if (stat(Symlink_Path.c_str(), &source) != 0) return false;
++		if (stat(Symlink_Mount_Point.c_str(), &target) == 0 &&
++		    source.st_dev == target.st_dev && source.st_ino == target.st_ino)
++			return true; // Already bound to this user; do not stack mounts.
++		// Initial DE storage can be /data/media; after CE unlock it is /0.
++		// Replace the previous bind instead of hiding it under another mount.
++		for (int layer = 0; IsExactMountPoint(Symlink_Mount_Point); ++layer) {
++			if (layer == 16 || stat(Symlink_Mount_Point.c_str(), &target) != 0 ||
++			    source.st_dev != target.st_dev || umount(Symlink_Mount_Point.c_str()) != 0) {
++				LOGERR("Unable to replace storage bind at %s\n", Symlink_Mount_Point.c_str());
++				return false;
++			}
++		}
+ 		if (mount(Symlink_Path.c_str(), Symlink_Mount_Point.c_str(), "", MS_BIND, NULL) < 0) {
+ 			return false;
+ 		}
+@@ -1800,12 +1834,18 @@
+ 		if (Is_Storage && MTP_Storage_ID > 0)
+ 			PartitionManager.Remove_MTP_Storage(MTP_Storage_ID);
+ 
+-		if (!Symlink_Mount_Point.empty())
+-			umount2(Symlink_Mount_Point.c_str(), flags);
++		if (!Symlink_Mount_Point.empty()) {
++			for (int layer = 0; IsExactMountPoint(Symlink_Mount_Point); ++layer) {
++				if (layer == 16 || umount2(Symlink_Mount_Point.c_str(), flags) != 0) {
++					LOGERR("Unable to unmount storage bind at %s\n", Symlink_Mount_Point.c_str());
++					return false;
++				}
++			}
++		}
+ 
+ 		umount2(Mount_Point.c_str(), flags);
+ 		if (Is_Mounted()) {
+-			if (Mount_Point == "/data" || Mount_Point == "/sdcard" || Mount_Point == "/data/media/0") {
++			if (!Is_FBE && (Mount_Point == "/data" || Mount_Point == "/sdcard" || Mount_Point == "/data/media/0")) {
+ 				LOGINFO("DEBUG: attempting again to unmount '%s'\n", Mount_Point.c_str());
+ 				TWFunc::Exec_Cmd("umount -l " + Mount_Point);
+ 				sleep(1);
