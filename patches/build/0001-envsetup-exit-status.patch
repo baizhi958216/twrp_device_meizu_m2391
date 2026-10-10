@@ -1,0 +1,17 @@
+From: baizhi958216
+Subject: [PATCH] envsetup: Return success after optional OrangeFox VTS cleanup
+
+The fox_12.1 sync patch ends orangefox_envsetup() with a file test. An absent
+or empty optional VTS makefile makes source envsetup.sh return 1 and stops
+build wrappers using set -e before lunch.
+
+--- a/envsetup.sh
++++ b/envsetup.sh
+@@ -1913,6 +1913,7 @@ function orangefox_envsetup() {
+     fi
+    # export OF_MANUAL_COPY_TWRES=1
+    [ -s $FOX_MANIFEST_ROOT/frameworks/base/services/core/xsd/vts/Android.mk ] && echo -n "" > $FOX_MANIFEST_ROOT/frameworks/base/services/core/xsd/vts/Android.mk
++   return 0
+ }
+ 
+ orangefox_envsetup

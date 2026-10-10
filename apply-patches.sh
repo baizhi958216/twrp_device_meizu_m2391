@@ -20,3 +20,4 @@ apply_patch_group() {
 
 apply_patch_group bootable/recovery "$TREE"/patches/*.patch
 apply_patch_group system/vold "$TREE"/patches/vold/*.patch
+apply_patch_group build/make "$TREE"/patches/build/*.patch

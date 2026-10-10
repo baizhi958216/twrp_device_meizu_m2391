@@ -78,17 +78,16 @@ TW_DEFAULT_LANGUAGE := zh_CN
 TW_EXTRA_LANGUAGES := true
 # Qualcomm RTC is a counter plus the current phone's ats_2 offset.
 TARGET_RECOVERY_QCOM_RTC_FIX := true
-TW_CUSTOM_CLOCK_POS := "right"
-TW_CUSTOM_BATTERY_POS := "center"
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
-# Leave TW_MAX_BRIGHTNESS unset: TWRP reads the panel's max_brightness.
+# OrangeFox uses this compile-time maximum for its brightness slider.
+TW_MAX_BRIGHTNESS := 4095
 TW_DEFAULT_BRIGHTNESS := 2784
 # Resolved by sensor type before the GUI starts; thermal_zone0 is PA, not CPU.
 TW_CUSTOM_CPU_TEMP_PATH := "/tmp/m2391-cpu-temp"
 TW_FRAMERATE := 60
 # AW8697 uses the reviewed stock module and finite mBack waveform.
 # Apply patches/0001-m2391-haptics.patch before building (apply-patches.sh).
-TW_DEVICE_VERSION := m2391
+TW_DEVICE_VERSION := m2391-OrangeFox
 RECOVERY_SDCARD_ON_DATA := true
 TW_EXCLUDE_DEFAULT_USB_INIT := true
 TW_INCLUDE_FASTBOOTD := true

@@ -1,5 +1,5 @@
-name: Build TWRP
-run-name: TWRP m2391 · ${{ github.ref_name }} · run ${{ github.run_number }}
+name: Build OrangeFox
+run-name: OrangeFox m2391 · ${{ github.ref_name }} · run ${{ github.run_number }}
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: twrp-${{ github.ref }}
+  group: orangefox-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -28,7 +28,7 @@ jobs:
         shell: bash
     env:
       JOBS: ${{ inputs.jobs }}
-      SOURCE_DIR: ${{ github.workspace }}/twrp
+      SOURCE_DIR: ${{ github.workspace }}/orangefox
       ARTIFACT_DIR: ${{ github.workspace }}/artifacts
       LC_ALL: C.UTF-8
       LANG: C.UTF-8
@@ -69,26 +69,22 @@ jobs:
             https://storage.googleapis.com/git-repo-downloads/repo \
             -o "$RUNNER_TEMP/repo"
           chmod 755 "$RUNNER_TEMP/repo"
-          git config --global user.name 'TWRP Builder'
+          git config --global user.name 'OrangeFox Builder'
           git config --global user.email 'twrp-builder@users.noreply.github.com'
 
-      - name: Sync TWRP android-12.1
+      - name: Sync OrangeFox fox_12.1
         run: |
+          git clone --depth=1 https://gitlab.com/OrangeFox/sync.git "$RUNNER_TEMP/OrangeFox-sync"
+          cd "$RUNNER_TEMP/OrangeFox-sync"
+          # Compatibility with sync revisions that reference this one level up.
+          if [ -f patches/patch-vendor-twrp-fox_12.1.diff ]; then
+            ln -sf patches/patch-vendor-twrp-fox_12.1.diff patch-vendor-twrp-fox_12.1.diff
+          fi
+          export PATH="$RUNNER_TEMP:$PATH"
+          bash orangefox_sync.sh --branch 12.1 --path "$SOURCE_DIR" \
+            2>&1 | tee "$ARTIFACT_DIR/logs/orangefox-sync.log"
           cd "$SOURCE_DIR"
-          "$RUNNER_TEMP/repo" init --depth=1 \
-            -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp.git \
-            -b twrp-12.1 2>&1 | tee "$ARTIFACT_DIR/logs/repo-init.log"
-          synced=false
-          for attempt in 1 2 3; do
-            if "$RUNNER_TEMP/repo" sync -c --no-tags --no-clone-bundle \
-                --optimized-fetch -j4 2>&1 | tee "$ARTIFACT_DIR/logs/repo-sync-$attempt.log"; then
-              synced=true
-              break
-            fi
-            sleep 15
-          done
-          test "$synced" = true
-          "$RUNNER_TEMP/repo" manifest -r -o "$ARTIFACT_DIR/source-manifest.xml"
+          repo manifest -r -o "$ARTIFACT_DIR/source-manifest.xml"
           mkdir -p device/meizu/m2391
           rsync -a --exclude=.git --exclude=.github \
             "$GITHUB_WORKSPACE/device-tree/" device/meizu/m2391/
@@ -105,15 +101,16 @@ jobs:
         run: |
           cd "$SOURCE_DIR"
           cp out/target/product/m2391/recovery.img "$ARTIFACT_DIR/recovery.img"
+          cp out/target/product/m2391/OrangeFox-*.zip "$ARTIFACT_DIR/"
           cd "$ARTIFACT_DIR"
-          sha256sum recovery.img > recovery.img.sha256
+          sha256sum recovery.img OrangeFox-*.zip > SHA256SUMS
           {
-            echo '### TWRP m2391 build'
+            echo '### OrangeFox m2391 build'
             echo
             echo "Device tree: $GITHUB_SHA"
             echo
             echo '```text'
-            cat recovery.img.sha256
+            cat SHA256SUMS
             echo '```'
             echo
             echo 'Download the recovery artifact below. Build success does not verify device runtime behavior.'
@@ -122,10 +119,11 @@ jobs:
       - name: Upload recovery image
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: twrp-m2391-${{ github.run_number }}
+          name: orangefox-m2391-${{ github.run_number }}
           path: |
             artifacts/recovery.img
-            artifacts/recovery.img.sha256
+            artifacts/OrangeFox-*.zip
+            artifacts/SHA256SUMS
             artifacts/source-manifest.xml
             artifacts/device-tree-commit.txt
           if-no-files-found: error
@@ -135,7 +133,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: twrp-m2391-logs-${{ github.run_number }}-${{ github.run_attempt }}
+          name: orangefox-m2391-logs-${{ github.run_number }}-${{ github.run_attempt }}
           path: |
             artifacts/logs/
             artifacts/source-manifest.xml
