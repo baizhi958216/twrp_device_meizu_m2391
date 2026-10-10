@@ -1,0 +1,253 @@
+--- a/twrpinstall/adb_install.cpp
++++ b/twrpinstall/adb_install.cpp
+@@ -31,6 +31,8 @@
+ #include <unistd.h>
+ 
+ #include <atomic>
++#include <chrono>
++#include <mutex>
+ #include <functional>
+ #include <map>
+ #include <utility>
+@@ -58,15 +60,50 @@
+ // always be sent to the minadbd side.
+ using CommandFunction = std::function<std::pair<bool, bool>()>;
+ 
+-pid_t child;
++static std::mutex minadbd_mutex;
++static pid_t child = 0;
+ 
+ pid_t GetMiniAdbdPid() {
++  std::lock_guard<std::mutex> lock(minadbd_mutex);
+   return child;
+ }
+ 
++void CancelMiniAdbd() {
++  // Cancellation never touches FUSE or reaps the child on the GUI thread.
++  // The sideload owner handles cleanup and USB restoration exactly once.
++  std::lock_guard<std::mutex> lock(minadbd_mutex);
++  if (child > 0) kill(child, SIGTERM);
++}
++
++static bool StopAndReapMinadbd(pid_t pid, int* status) {
++  {
++    std::lock_guard<std::mutex> lock(minadbd_mutex);
++    child = 0;
++    kill(pid, SIGTERM);
++  }
++  // Do not leave the action thread blocked in waitpid if a daemon misbehaves.
++  for (int attempt = 0; attempt < 40; ++attempt) {
++    const pid_t waited = TEMP_FAILURE_RETRY(waitpid(pid, status, WNOHANG));
++    if (waited == pid) return true;
++    if (waited == -1) {
++      PLOG(ERROR) << "Failed to reap minadbd";
++      return false;
++    }
++    if (attempt == 19) kill(pid, SIGKILL);
++    usleep(50000);
++  }
++  LOG(ERROR) << "Timed out reaping minadbd";
++  return false;
++}
++
+ static bool SetUsbConfig(const std::string& state) {
+-  android::base::SetProperty("sys.usb.config", state);
+-  return android::base::WaitForProperty("sys.usb.state", state);
++  if (!android::base::SetProperty("sys.usb.config", state)) return false;
++  if (!android::base::WaitForProperty("sys.usb.state", state, std::chrono::seconds(10))) {
++    LOG(ERROR) << "USB transition timed out: requested=" << state
++               << ", actual=" << android::base::GetProperty("sys.usb.state", "none");
++    return false;
++  }
++  return true;
+ }
+ 
+ // Parses the minadbd command in |message|; returns MinadbdCommand::kError upon errors.
+@@ -291,12 +328,12 @@
+     return;
+   }
+ 
+-  child = fork();
+-  if (child == -1) {
++  const pid_t minadbd_pid = fork();
++  if (minadbd_pid == -1) {
+     PLOG(ERROR) << "Failed to fork child process";
+     return;
+   }
+-  if (child == 0) {
++  if (minadbd_pid == 0) {
+     recovery_socket.reset();
+     std::vector<std::string> minadbd_commands = {
+       "/system/bin/minadbd",
+@@ -311,28 +348,30 @@
+     _exit(EXIT_FAILURE);
+   }
+ 
++  {
++    std::lock_guard<std::mutex> lock(minadbd_mutex);
++    child = minadbd_pid;
++  }
+   minadbd_socket.reset();
+ 
+   // We need to call SetUsbConfig() after forking minadbd service. Because the function waits for
+   // the usb state to be updated, which depends on sys.usb.ffs.ready=1 set in the adb daemon.
+   if (!SetUsbConfig("sideload")) {
+     LOG(ERROR) << "Failed to set usb config to sideload";
+-    return;
+-  }
+-
+-  std::thread listener_thread(ListenAndExecuteMinadbdCommands, child,
+-                              std::move(recovery_socket), std::ref(command_map));
+-  if (listener_thread.joinable()) {
++  } else {
++    std::thread listener_thread(ListenAndExecuteMinadbdCommands, minadbd_pid,
++                                std::move(recovery_socket), std::ref(command_map));
+     listener_thread.join();
+   }
+ 
+-  int status;
+-  waitpid(child, &status, 0);
+-  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+-    if (WEXITSTATUS(status) == MinadbdErrorCode::kMinadbdAdbVersionError) {
+-      LOG(ERROR) << "\nYou need adb 1.0.32 or newer to sideload\nto this device.\n";
+-    } else if (!WIFSIGNALED(status)) {
+-      LOG(ERROR) << "\n(adbd status " << WEXITSTATUS(status) << ")";
++  int status = 0;
++  if (StopAndReapMinadbd(minadbd_pid, &status)) {
++    if (WIFEXITED(status)) {
++      if (WEXITSTATUS(status) == MinadbdErrorCode::kMinadbdAdbVersionError) {
++        LOG(ERROR) << "You need adb 1.0.32 or newer to sideload to this device.";
++      } else if (WEXITSTATUS(status) != 0) {
++        LOG(ERROR) << "(adbd status " << WEXITSTATUS(status) << ")";
++      }
+     }
+   }
+ 
+@@ -341,8 +380,11 @@
+ 
+   int twrp_sideload(const char* install_file, Device::BuiltinAction* reboot_action) {
+ 
+-  // Save the usb state to restore after the sideload operation.
+-  std::string usb_state = android::base::GetProperty("sys.usb.state", "none");
++  // sys.usb.state can lag behind the configuration after Toggle_MTP(false).
++  // MTP is stopped during sideload and restarted by the caller afterwards;
++  // waiting for mtp,adb here would wait for a daemon that has not been started.
++  std::string usb_state = android::base::GetProperty("sys.usb.config", "adb");
++  if (usb_state != "none") usb_state = "adb";
+   // Clean up state and stop adbd.
+   if (usb_state != "none" && !SetUsbConfig("none")) {
+     LOG(ERROR) << "Failed to clear USB config";
+--- a/twrpinstall/include/twinstall/adb_install.h
++++ b/twrpinstall/include/twinstall/adb_install.h
+@@ -22,4 +22,5 @@
+ // InstallResult`). When a reboot has been requested, INSTALL_REBOOT will be the return value, with
+ // the reboot target set in reboot_action.
+ int twrp_sideload(const char* install_file, Device::BuiltinAction* reboot_action);
+-pid_t GetMiniAdbdPid();
+\ No newline at end of file
++pid_t GetMiniAdbdPid();
++void CancelMiniAdbd();
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -73,7 +73,6 @@
+ std::set < string > GUIAction::setActionsRunningInCallerThread;
+ static string zip_queue[10];
+ static int zip_queue_index;
+-pid_t sideload_child_pid;
+ extern GUITerminal* term;
+ extern std::vector<users_struct> Users_List;
+ 
+@@ -2136,7 +2135,6 @@
+ 		// wait for the adb connection
+ 		Device::BuiltinAction reboot_action = Device::REBOOT_BOOTLOADER;
+ 		int ret = twrp_sideload("/", &reboot_action);
+-		sideload_child_pid = GetMiniAdbdPid();
+ 		DataManager::SetValue("tw_has_cancel", 0); // Remove cancel button from gui now that the zip install is going to start
+ 
+ 		if (ret != 0) {
+@@ -2162,25 +2160,10 @@
+ 
+ int GUIAction::adbsideloadcancel(std::string arg __unused)
+ {
+-	struct stat st;
+-	DataManager::SetValue("tw_has_cancel", 0); // Remove cancel button from gui
++	DataManager::SetValue("tw_has_cancel", 0);
+ 	gui_msg("cancel_sideload=Cancelling ADB sideload...");
+-	LOGINFO("Signaling child sideload process to exit.\n");
+-	// Calling stat() on this magic filename signals the minadbd
+-	// subprocess to shut down.
+-	stat(FUSE_SIDELOAD_HOST_EXIT_PATHNAME, &st);
+-	sideload_child_pid = GetMiniAdbdPid();
+-	if (!sideload_child_pid) {
+-		LOGERR("Unable to get child ID\n");
+-		return 0;
+-	}
+-	::sleep(1);
+-	LOGINFO("Killing child sideload process.\n");
+-	kill(sideload_child_pid, SIGTERM);
+-	int status;
+-	LOGINFO("Waiting for child sideload process to exit.\n");
+-	waitpid(sideload_child_pid, &status, 0);
+-	sideload_child_pid = 0;
++	LOGINFO("Requesting minadbd cancellation; the sideload owner will reap it.\n");
++	CancelMiniAdbd();
+ 	DataManager::SetValue("tw_page_done", "1"); // For OpenRecoveryScript support
+ 	return 0;
+ }
+--- a/openrecoveryscript.cpp
++++ b/openrecoveryscript.cpp
+@@ -418,32 +418,22 @@
+ 
+ 				// ret_val = apply_from_adb("/", &sideload_child_pid);
+ 				Device::BuiltinAction reboot_action = Device::REBOOT_BOOTLOADER;
++				const bool mtp_was_enabled = TWFunc::Toggle_MTP(false);
+ 				ret_val = twrp_sideload("/", &reboot_action);
++				TWFunc::Toggle_MTP(mtp_was_enabled);
+ 				if (ret_val != 0) {
+ 					if (ret_val == -2)
+ 						gui_err("need_new_adb=You need adb 1.0.32 or newer to sideload to this device.");
+ 					ret_val = 1; // failure
+-				} else if (TWinstall_zip(FUSE_SIDELOAD_HOST_PATHNAME, &wipe_cache) == 0) {
++				} else {
++					// twrp_sideload already installed the package. FUSE is closed now;
++					// do not attempt to install it again after returning.
+ 					if (wipe_cache)
+ 						PartitionManager.Wipe_By_Path("/cache");
+-				} else {
+-					ret_val = 1; // failure
+ 				}
+ 				PartitionManager.Unlock_Block_Partitions();
+ 				PartitionManager.Update_System_Details();
+ 				sideload = 1; // Causes device to go to the home screen afterwards
+-
+-				pid_t sideload_child_pid = GetMiniAdbdPid();
+-				if (sideload_child_pid != 0) {
+-					LOGINFO("Signaling child sideload process to exit.\n");
+-					struct stat st;
+-					// Calling stat() on this magic filename signals the minadbd
+-					// subprocess to shut down.
+-					stat(FUSE_SIDELOAD_HOST_EXIT_PATHNAME, &st);
+-					int status;
+-					LOGINFO("Waiting for child sideload process to exit.\n");
+-					waitpid(sideload_child_pid, &status, 0);
+-				}
+ 
+ 				property_set("ctl.start", "adbd");
+ 				gui_msg("done=Done.");
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -3180,10 +3180,11 @@
+ 	if (mtppid) {
+ 		LOGINFO("Disabling MTP\n");
+ 		int status;
+-		kill(mtppid, SIGKILL);
++		const pid_t stopped_mtp_pid = mtppid;
++		kill(stopped_mtp_pid, SIGKILL);
+ 		mtppid = 0;
+-		// We don't care about the exit value, but this prevents a zombie process
+-		waitpid(mtppid, &status, 0);
++		// Reap only the MTP child. waitpid(0) can wait for an unrelated child.
++		while (waitpid(stopped_mtp_pid, &status, 0) == -1 && errno == EINTR) {}
+ 		close(mtp_write_fd);
+ 		mtp_write_fd = -1;
+ 	}
