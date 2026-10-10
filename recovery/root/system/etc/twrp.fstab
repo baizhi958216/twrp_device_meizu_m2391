@@ -56,4 +56,6 @@
 /dsp_b       emmc /dev/block/by-name/dsp_b       flags=subpartitionof=/modem_b;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
 /bluetooth_b emmc /dev/block/by-name/bluetooth_b flags=subpartitionof=/modem_b;backup=1;canbewiped=0;wipeingui=0;wipeduringfactoryreset=0;flashimg=0
 
-/usb_otg     auto /dev/block/sda1 /dev/block/sda flags=display="USB OTG";storage;removable;wipeingui
+# Match only mass storage below the USB host controller. sda-sdf are UFS LUNs;
+# their names must never be used as OTG fallbacks on m2391.
+/devices/platform/soc/a600000.ssusb/a600000.dwc3/xhci-hcd* /usb_otg auto nosuid,nodev wait,display="USB OTG",storage,removable,wipeingui

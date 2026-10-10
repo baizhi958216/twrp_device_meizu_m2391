@@ -28,7 +28,7 @@
 on init
     # Required by vold fscrypt provisioning even with the v2 kernel keyring.
     install_keyring
-    write /sys/class/backlight/panel0-backlight/brightness 2784
+    write /sys/class/backlight/panel0-backlight/brightness 409
     setprop sys.usb.configfs 1
 
 on property:ro.boot.usbcontroller=*
@@ -62,6 +62,7 @@ on boot
     # fastbootd waits for IHealth in its constructor, before opening USB FFS.
     start health-hal-2-1
     start m2391.haptics
+    start m2391.flashlight
     start m2391.boot-hal
     start m2391.qseecomd
     start m2391.keymint

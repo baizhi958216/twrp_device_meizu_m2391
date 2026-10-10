@@ -1,0 +1,5 @@
+dir.recovery = /system/bin
+[recovery]
+namespace.default.isolated = false
+namespace.default.search.paths = /system/${LIB}/recovery-bionic:/system/${LIB}
+namespace.default.asan.search.paths = /system/${LIB}/recovery-bionic:/data/asan/system/${LIB}:/system/${LIB}

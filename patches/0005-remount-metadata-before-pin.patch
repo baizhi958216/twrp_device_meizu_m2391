@@ -1,0 +1,15 @@
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -3380,7 +3380,11 @@
+ 			}
+ 		}
+ 		return;
+-	} else if (Is_Decrypted && !Decrypted_Block_Device.empty()) {
++	} else if (!Decrypted_Block_Device.empty() &&
++		(Is_Decrypted || (Is_FBE && !Key_Directory.empty()))) {
++		// The metadata mapper stays usable while credential-encrypted files are
++		// still locked. Decrypt_FBE_DE deliberately clears Is_Decrypted before
++		// the PIN page; remounting raw userdata would fail with EBUSY instead.
+ 		Actual_Block_Device = Decrypted_Block_Device;
+ 		if (TWFunc::Path_Exists(Decrypted_Block_Device)) {
+ 			Is_Present = true;

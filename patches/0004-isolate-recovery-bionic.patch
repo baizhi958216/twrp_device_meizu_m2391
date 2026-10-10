@@ -1,0 +1,17 @@
+From: baizhi958216
+Subject: [PATCH] init: Prefer recovery bionic over the generic init_boot libraries
+
+Android 17 init_boot overlays /system/lib64 with its own libc/libdl. Keep
+processes using the Android 12.1 recovery linker on the matching runtime.
+
+--- a/etc/init.rc
++++ b/etc/init.rc
+@@ -22,7 +22,7 @@
+ 
+ on init
+     export PATH /sbin:/system/bin
+-    export LD_LIBRARY_PATH /system/lib64:/vendor/lib64/hw
++    export LD_LIBRARY_PATH /system/lib64/recovery-bionic:/system/lib64:/vendor/lib64/hw
+ 
+     export ANDROID_ROOT /system
+     export ANDROID_DATA /data

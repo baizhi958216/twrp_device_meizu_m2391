@@ -15,7 +15,7 @@ service m2391.boot-hal /system/bin/android.hardware.boot@1.2-service
     user root
     group root
     disabled
-    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    setenv LD_LIBRARY_PATH /system/lib64/recovery-bionic:/vendor/lib64:/system/lib64
     seclabel u:r:recovery:s0
 
 service m2391.qseecomd /system/bin/qseecomd
@@ -23,14 +23,14 @@ service m2391.qseecomd /system/bin/qseecomd
     user root
     group root drmrpc
     disabled
-    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    setenv LD_LIBRARY_PATH /system/lib64/recovery-bionic:/vendor/lib64:/system/lib64
     seclabel u:r:recovery:s0
 
 service m2391.keymint /system/bin/android.hardware.security.keymint-service-qti
     user system
     group system drmrpc
     disabled
-    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    setenv LD_LIBRARY_PATH /system/lib64/recovery-bionic:/vendor/lib64:/system/lib64
     seclabel u:r:recovery:s0
 
 service m2391.gatekeeper /system/bin/android.hardware.gatekeeper@1.0-service-qti
@@ -38,5 +38,12 @@ service m2391.gatekeeper /system/bin/android.hardware.gatekeeper@1.0-service-qti
     user system
     group system
     disabled
-    setenv LD_LIBRARY_PATH /vendor/lib64:/system/lib64
+    setenv LD_LIBRARY_PATH /system/lib64/recovery-bionic:/vendor/lib64:/system/lib64
+    seclabel u:r:recovery:s0
+
+service m2391.flashlight /system/bin/m2391-setup-flashlight.sh
+    user root
+    group root
+    disabled
+    oneshot
     seclabel u:r:recovery:s0

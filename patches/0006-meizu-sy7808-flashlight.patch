@@ -1,0 +1,22 @@
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -2573,6 +2573,19 @@
+     string enable_flash;
+     DataManager::GetValue(OF_FLASHLIGHT_ENABLE_STR, enable_flash);
+     if (enable_flash == "1") {
++		// Meizu's physical SY7808 LEDs use a command interface, not LED class
++		// brightness nodes. Retain the stock behaviour on devices without it.
++		const std::string torch_helper = "/system/bin/m2391-flashlight.sh";
++		if (TWFunc::Path_Exists(torch_helper)) {
++			const bool was_on = DataManager::GetIntValue("of_flash_on") == 1;
++			std::string result;
++			if (TWFunc::Exec_Cmd(torch_helper + (was_on ? " off" : " on"), result) != 0) {
++				gui_print_color("warning", "Flashlight driver is not ready.\n");
++				return 0;
++			}
++			DataManager::SetValue("of_flash_on", was_on ? "0" : "1");
++			return 0;
++		}
+ 		std::string path_one, path_two,
+ 					fl_one_on, fl_two_on,
+ 					max_one, max_two,

@@ -46,11 +46,12 @@ BOARD_AVB_RECOVERY_ADD_HASH_FOOTER_ARGS += --rollback_index 1
 
 # System properties must match this OTA for KeyMint version checks.
 # These do not change the TWRP source SDK or the stock recovery boot header.
-PLATFORM_VERSION := 16.0.0
-PLATFORM_VERSION_LAST_STABLE := 16
-PLATFORM_SECURITY_PATCH := 2099-12-31
+PLATFORM_VERSION := 17.0.0
+PLATFORM_VERSION_LAST_STABLE := 17
+# Match the installed Android 17 ROM before the KeyMint HAL starts.
+PLATFORM_SECURITY_PATCH := 2026-10-01
 
-# Values from vendor/recovery, not the Android 16 system version.
+# Values from vendor/recovery, not the ROM system version.
 # Do not emit full-system GRF board API properties into an SDK-32 recovery.
 # Physical launch API 33 is recorded in vendor.prop.
 VENDOR_SECURITY_PATCH := 2023-10-01
@@ -81,7 +82,7 @@ TARGET_RECOVERY_QCOM_RTC_FIX := true
 TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
 # OrangeFox uses this compile-time maximum for its brightness slider.
 TW_MAX_BRIGHTNESS := 4095
-TW_DEFAULT_BRIGHTNESS := 2784
+TW_DEFAULT_BRIGHTNESS := 409
 # Resolved by sensor type before the GUI starts; thermal_zone0 is PA, not CPU.
 TW_CUSTOM_CPU_TEMP_PATH := "/tmp/m2391-cpu-temp"
 TW_FRAMERATE := 60

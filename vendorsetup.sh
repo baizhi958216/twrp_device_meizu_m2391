@@ -5,6 +5,7 @@ if [ "${FOX_BUILD_DEVICE:-}" = m2391 ]; then
 export FOX_BUILD_TYPE=Unofficial
 export OF_MAINTAINER=baizhi958216
 export TARGET_DEVICE_ALT=meizu20Pro
+export FOX_LOCAL_CALLBACK_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/orangefox-pre-build.sh"
 
 # Virtual A/B with dedicated, kernel-less recovery_a/recovery_b images.
 export FOX_AB_DEVICE=1
@@ -37,4 +38,6 @@ export FOX_USE_SED_BINARY=1
 export FOX_USE_LZ4_BINARY=1
 export FOX_USE_ZSTD_BINARY=1
 export FOX_USE_BASH_SHELL=1
+
+# Meizu's SY7808 torch uses /sys/class/meizu/flash/flash_both via the GUI hook.
 fi
