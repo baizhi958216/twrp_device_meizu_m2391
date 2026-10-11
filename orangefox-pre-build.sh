@@ -17,8 +17,8 @@ for library in libc.so libdl.so libm.so ld-android.so; do
 done
 echo 'Preserved the recovery bionic runtime against init_boot overlays.'
 
-# Use OrangeFox's AMOLED Black style as the fallback before /data is unlocked.
+# Use OrangeFox's Dark brand style as the fallback before /data is unlocked.
 # A user's saved custom theme still takes precedence through the normal loader.
-test -s "$RAMDISK/twres/themes/styles/Black.xml"
-cp -p "$RAMDISK/twres/themes/styles/Black.xml" "$RAMDISK/twres/themes/style.xml"
-echo 'Selected the built-in Black theme as the default.'
+test -s "$RAMDISK/twres/themes/styles/Dark.xml"
+cp -p "$RAMDISK/twres/themes/styles/Dark.xml" "$RAMDISK/twres/themes/style.xml"
+echo 'Selected the built-in Dark brand theme as the default.'
